@@ -174,7 +174,7 @@ static bool ReadHeightmapPNG(const char *filename, uint *x, uint *y, byte **map)
 		ShowErrorMessage(STR_ERROR_PNGMAP, STR_ERROR_PNGMAP_IMAGE_TYPE, WL_ERROR);
 		fclose(fp);
 		png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
-		return false;
+		return;
 	}
 
 	uint width = png_get_image_width(png_ptr, info_ptr);
