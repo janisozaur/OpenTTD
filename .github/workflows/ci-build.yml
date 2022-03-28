@@ -47,6 +47,11 @@ jobs:
         cmake --build . -j $(nproc) --target tools
         echo "::endgroup::"
 
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-emscripten
+
     - name: Install GCC problem matcher
       uses: ammaraskar/gcc-problem-matcher@master
 
@@ -74,15 +79,19 @@ jobs:
         - compiler: clang
           cxxcompiler: clang++
           libsdl: libsdl2-dev
+          ccache-key: clang
         - compiler: gcc
           cxxcompiler: g++
           libsdl: libsdl2-dev
+          ccache-key: gcc-sdl2
         - compiler: gcc
           cxxcompiler: g++
           libsdl: libsdl1.2-dev
+          ccache-key: gcc-sdl1
         - compiler: gcc
           cxxcompiler: g++
           extra-cmake-parameters: -DOPTION_DEDICATED=ON -DCMAKE_CXX_FLAGS_INIT="-DRANDOM_DEBUG"
+          ccache-key: gcc-dedicated
 
     runs-on: ubuntu-20.04
     env:
@@ -127,6 +136,11 @@ jobs:
         echo "::endgroup::"
 
         rm -f opengfx-all.zip
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-${{ matrix.ccache-key }}
 
     - name: Install GCC problem matcher
       uses: ammaraskar/gcc-problem-matcher@master
@@ -204,6 +218,11 @@ jobs:
         echo "::endgroup::"
 
         rm -f opengfx-all.zip
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-macos
 
     - name: Install GCC problem matcher
       uses: ammaraskar/gcc-problem-matcher@master
@@ -368,6 +387,11 @@ jobs:
         echo "::endgroup::"
 
         rm -f opengfx-all.zip
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ccache-mingw-${{ matrix.arch }}
 
     - name: Install GCC problem matcher
       uses: ammaraskar/gcc-problem-matcher@master
