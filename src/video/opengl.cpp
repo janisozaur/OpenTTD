@@ -994,7 +994,13 @@ bool OpenGLBackend::InitShaders()
 template <class T>
 static void ClearPixelBuffer(size_t len, T data)
 {
-	T *buf = reinterpret_cast<T *>(_glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE));
+	T *buf;
+	if (IsOpenGLES()) {
+		/* OpenGL ES requires glMapBufferRange with bitfield access flags */
+		buf = reinterpret_cast<T *>(_glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, sizeof(T) * len, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT));
+	} else {
+		buf = reinterpret_cast<T *>(_glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE));
+	}
 	for (size_t i = 0; i < len; i++) {
 		*buf++ = data;
 	}
@@ -1259,7 +1265,12 @@ void *OpenGLBackend::GetVideoBuffer()
 	if (!this->persistent_mapping_supported) {
 		assert(this->vid_buffer == nullptr);
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->vid_pbo);
-		this->vid_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+		if (IsOpenGLES()) {
+			/* OpenGL ES requires glMapBufferRange with bitfield access flags */
+			this->vid_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height * BlitterFactory::GetCurrentBlitter()->GetScreenDepth() / 8, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
+		} else {
+			this->vid_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+		}
 	} else if (this->vid_buffer == nullptr) {
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->vid_pbo);
 		this->vid_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height * BlitterFactory::GetCurrentBlitter()->GetScreenDepth() / 8, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
@@ -1282,7 +1293,12 @@ uint8_t *OpenGLBackend::GetAnimBuffer()
 
 	if (!this->persistent_mapping_supported) {
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->anim_pbo);
-		this->anim_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+		if (IsOpenGLES()) {
+			/* OpenGL ES requires glMapBufferRange with bitfield access flags */
+			this->anim_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
+		} else {
+			this->anim_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+		}
 	} else if (this->anim_buffer == nullptr) {
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->anim_pbo);
 		this->anim_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
