@@ -527,6 +527,16 @@ OpenGLBackend::~OpenGLBackend()
 static std::tuple<uint8_t, uint8_t> DecodeVersion(std::string_view ver)
 {
 	StringConsumer consumer{ver};
+
+	/* Handle OpenGL ES version strings like "OpenGL ES 3.1" */
+	if (ver.find("OpenGL ES") != std::string::npos) {
+		/* Skip "OpenGL ES " prefix */
+		auto es_pos = ver.find("OpenGL ES ");
+		if (es_pos != std::string::npos) {
+			consumer = StringConsumer{ver.substr(es_pos + 10)}; // Skip "OpenGL ES "
+		}
+	}
+
 	int major = consumer.ReadIntegerBase<uint8_t>(10);
 	if (consumer.ReadIf(".")) return {major, consumer.ReadIntegerBase<uint8_t>(10)};
 	return {major, 0};
@@ -571,12 +581,13 @@ std::optional<std::string_view> OpenGLBackend::Init(const Dimension &screen_res)
 
 	SetupDebugOutput();
 
-	/* OpenGL 1.3 is the absolute minimum. */
-	if (!IsOpenGLVersionAtLeast(1, 3)) return "OpenGL version >= 1.3 required";
+	/* OpenGL 1.3 is the absolute minimum for desktop OpenGL, but OpenGL ES 2.0 is acceptable */
+	if (!IsOpenGLES() && !IsOpenGLVersionAtLeast(1, 3)) return "OpenGL version >= 1.3 required";
+	if (IsOpenGLES() && !IsOpenGLVersionAtLeast(2, 0)) return "OpenGL ES version >= 2.0 required";
 	/* Check for non-power-of-two texture support. */
-	if (!IsOpenGLVersionAtLeast(2, 0) && !IsOpenGLExtensionSupported("GL_ARB_texture_non_power_of_two")) return "Non-power-of-two textures not supported";
+	if (!IsOpenGLES() && !IsOpenGLVersionAtLeast(2, 0) && !IsOpenGLExtensionSupported("GL_ARB_texture_non_power_of_two")) return "Non-power-of-two textures not supported";
 	/* Check for single element texture formats. */
-	if (!IsOpenGLVersionAtLeast(3, 0) && !IsOpenGLExtensionSupported("GL_ARB_texture_rg")) return "Single element texture formats not supported";
+	if (!IsOpenGLES() && !IsOpenGLVersionAtLeast(3, 0) && !IsOpenGLExtensionSupported("GL_ARB_texture_rg")) return "Single element texture formats not supported";
 	if (!BindTextureExtensions()) return "Failed to bind texture extension functions";
 	/* Check for vertex buffer objects. */
 	if (!IsOpenGLVersionAtLeast(1, 5) && !IsOpenGLExtensionSupported("ARB_vertex_buffer_object")) return "Vertex buffer objects not supported";
