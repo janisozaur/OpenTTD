@@ -528,8 +528,16 @@ static std::tuple<uint8_t, uint8_t> DecodeVersion(std::string_view ver)
 {
 	StringConsumer consumer{ver};
 
+	/* Handle OpenGL ES GLSL version strings like "OpenGL ES GLSL ES 3.10" */
+	if (ver.find("OpenGL ES GLSL ES") != std::string::npos) {
+		/* Skip "OpenGL ES GLSL ES " prefix */
+		auto es_pos = ver.find("OpenGL ES GLSL ES ");
+		if (es_pos != std::string::npos) {
+			consumer = StringConsumer{ver.substr(es_pos + 18)}; // Skip "OpenGL ES GLSL ES "
+		}
+	}
 	/* Handle OpenGL ES version strings like "OpenGL ES 3.1" */
-	if (ver.find("OpenGL ES") != std::string::npos) {
+	else if (ver.find("OpenGL ES") != std::string::npos) {
 		/* Skip "OpenGL ES " prefix */
 		auto es_pos = ver.find("OpenGL ES ");
 		if (es_pos != std::string::npos) {
@@ -851,7 +859,7 @@ bool OpenGLBackend::InitShaders()
 
 	if (IsOpenGLES()) {
 		/* For OpenGL ES, check GLSL ES version */
-		if (ver->find("3.") != std::string::npos || glsl_major >= 3) {
+		if (glsl_major >= 3) {
 			use_gles3 = true;
 			use_modern_shaders = true;
 		}
