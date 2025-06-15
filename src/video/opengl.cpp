@@ -193,6 +193,7 @@ static bool IsOpenGLExtensionSupported(std::string_view extension)
 
 static uint8_t _gl_major_ver = 0; ///< Major OpenGL version.
 static uint8_t _gl_minor_ver = 0; ///< Minor OpenGL version.
+static bool _is_gles = false; ///< True if using OpenGL ES.
 
 /**
  * Check if the current OpenGL version is equal or higher than a given one.
@@ -204,6 +205,15 @@ static uint8_t _gl_minor_ver = 0; ///< Minor OpenGL version.
 bool IsOpenGLVersionAtLeast(uint8_t major, uint8_t minor)
 {
 	return (_gl_major_ver > major) || (_gl_major_ver == major && _gl_minor_ver >= minor);
+}
+
+/**
+ * Check if we are using OpenGL ES.
+ * @return True if using OpenGL ES.
+ */
+static bool IsOpenGLES()
+{
+	return _is_gles;
 }
 
 /**
@@ -538,6 +548,9 @@ std::optional<std::string_view> OpenGLBackend::Init(const Dimension &screen_res)
 
 	if (!ver.has_value() || !vend.has_value() || !renderer.has_value()) return "OpenGL not supported";
 
+	/* Check if this is OpenGL ES by looking at the version string */
+	_is_gles = ver->find("OpenGL ES") != std::string::npos;
+
 	Debug(driver, 1, "OpenGL driver: {} - {} ({})", *vend, *renderer, *ver);
 
 #ifndef GL_ALLOW_SOFTWARE_RENDERER
@@ -627,14 +640,26 @@ std::optional<std::string_view> OpenGLBackend::Init(const Dimension &screen_res)
 
 	/* Setup palette texture. */
 	_glGenTextures(1, &this->pal_texture);
-	_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
-	_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAX_LEVEL, 0);
-	_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	_glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, 256, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
-	_glBindTexture(GL_TEXTURE_1D, 0);
+	if (IsOpenGLES()) {
+		/* OpenGL ES doesn't support 1D textures, use a 2D texture with height 1 */
+		_glBindTexture(GL_TEXTURE_2D, this->pal_texture);
+		_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+		_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		_glBindTexture(GL_TEXTURE_2D, 0);
+	} else {
+		_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+		_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAX_LEVEL, 0);
+		_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		_glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		_glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA8, 256, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+		_glBindTexture(GL_TEXTURE_1D, 0);
+	}
 	if (_glGetError() != GL_NO_ERROR) return "Can't generate palette lookup texture";
 
 	/* Bind uniforms in rendering shader program. */
@@ -809,35 +834,89 @@ bool OpenGLBackend::InitShaders()
 
 	auto [glsl_major, glsl_minor] = DecodeVersion(*ver);
 
-	bool glsl_150 = (IsOpenGLVersionAtLeast(3, 2) || glsl_major > 1 || (glsl_major == 1 && glsl_minor >= 5)) && _glBindFragDataLocation != nullptr;
+	/* Determine which shader version to use based on OpenGL/ES version and capabilities */
+	bool use_modern_shaders = false;
+	bool use_gles3 = false;
+
+	if (IsOpenGLES()) {
+		/* For OpenGL ES, check GLSL ES version */
+		if (ver->find("3.") != std::string::npos || glsl_major >= 3) {
+			use_gles3 = true;
+			use_modern_shaders = true;
+		}
+		/* Otherwise use GLSL ES 1.00 (compatible with OpenGL ES 2.0) */
+	} else {
+		/* For regular OpenGL, use existing logic */
+		use_modern_shaders = (IsOpenGLVersionAtLeast(3, 2) || glsl_major > 1 || (glsl_major == 1 && glsl_minor >= 5)) && _glBindFragDataLocation != nullptr;
+	}
 
 	/* Create vertex shader. */
 	GLuint vert_shader = _glCreateShader(GL_VERTEX_SHADER);
-	_glShaderSource(vert_shader, glsl_150 ? lengthof(_vertex_shader_sprite_150) : lengthof(_vertex_shader_sprite), glsl_150 ? _vertex_shader_sprite_150 : _vertex_shader_sprite, nullptr);
+	if (IsOpenGLES()) {
+		if (use_gles3) {
+			_glShaderSource(vert_shader, lengthof(_vertex_shader_sprite_es3), _vertex_shader_sprite_es3, nullptr);
+		} else {
+			_glShaderSource(vert_shader, lengthof(_vertex_shader_sprite_es), _vertex_shader_sprite_es, nullptr);
+		}
+	} else {
+		_glShaderSource(vert_shader, use_modern_shaders ? lengthof(_vertex_shader_sprite_150) : lengthof(_vertex_shader_sprite), use_modern_shaders ? _vertex_shader_sprite_150 : _vertex_shader_sprite, nullptr);
+	}
 	_glCompileShader(vert_shader);
 	if (!VerifyShader(vert_shader)) return false;
 
 	/* Create fragment shader for plain RGBA. */
 	GLuint frag_shader_rgb = _glCreateShader(GL_FRAGMENT_SHADER);
-	_glShaderSource(frag_shader_rgb, glsl_150 ? lengthof(_frag_shader_direct_150) : lengthof(_frag_shader_direct), glsl_150 ? _frag_shader_direct_150 : _frag_shader_direct, nullptr);
+	if (IsOpenGLES()) {
+		if (use_gles3) {
+			_glShaderSource(frag_shader_rgb, lengthof(_frag_shader_direct_es3), _frag_shader_direct_es3, nullptr);
+		} else {
+			_glShaderSource(frag_shader_rgb, lengthof(_frag_shader_direct_es), _frag_shader_direct_es, nullptr);
+		}
+	} else {
+		_glShaderSource(frag_shader_rgb, use_modern_shaders ? lengthof(_frag_shader_direct_150) : lengthof(_frag_shader_direct), use_modern_shaders ? _frag_shader_direct_150 : _frag_shader_direct, nullptr);
+	}
 	_glCompileShader(frag_shader_rgb);
 	if (!VerifyShader(frag_shader_rgb)) return false;
 
 	/* Create fragment shader for paletted only. */
 	GLuint frag_shader_pal = _glCreateShader(GL_FRAGMENT_SHADER);
-	_glShaderSource(frag_shader_pal, glsl_150 ? lengthof(_frag_shader_palette_150) : lengthof(_frag_shader_palette), glsl_150 ? _frag_shader_palette_150 : _frag_shader_palette, nullptr);
+	if (IsOpenGLES()) {
+		if (use_gles3) {
+			_glShaderSource(frag_shader_pal, lengthof(_frag_shader_palette_es3), _frag_shader_palette_es3, nullptr);
+		} else {
+			_glShaderSource(frag_shader_pal, lengthof(_frag_shader_palette_es), _frag_shader_palette_es, nullptr);
+		}
+	} else {
+		_glShaderSource(frag_shader_pal, use_modern_shaders ? lengthof(_frag_shader_palette_150) : lengthof(_frag_shader_palette), use_modern_shaders ? _frag_shader_palette_150 : _frag_shader_palette, nullptr);
+	}
 	_glCompileShader(frag_shader_pal);
 	if (!VerifyShader(frag_shader_pal)) return false;
 
 	/* Sprite remap fragment shader. */
 	GLuint remap_shader = _glCreateShader(GL_FRAGMENT_SHADER);
-	_glShaderSource(remap_shader, glsl_150 ? lengthof(_frag_shader_rgb_mask_blend_150) : lengthof(_frag_shader_rgb_mask_blend), glsl_150 ? _frag_shader_rgb_mask_blend_150 : _frag_shader_rgb_mask_blend, nullptr);
+	if (IsOpenGLES()) {
+		if (use_gles3) {
+			_glShaderSource(remap_shader, lengthof(_frag_shader_rgb_mask_blend_es3), _frag_shader_rgb_mask_blend_es3, nullptr);
+		} else {
+			_glShaderSource(remap_shader, lengthof(_frag_shader_rgb_mask_blend_es), _frag_shader_rgb_mask_blend_es, nullptr);
+		}
+	} else {
+		_glShaderSource(remap_shader, use_modern_shaders ? lengthof(_frag_shader_rgb_mask_blend_150) : lengthof(_frag_shader_rgb_mask_blend), use_modern_shaders ? _frag_shader_rgb_mask_blend_150 : _frag_shader_rgb_mask_blend, nullptr);
+	}
 	_glCompileShader(remap_shader);
 	if (!VerifyShader(remap_shader)) return false;
 
 	/* Sprite fragment shader. */
 	GLuint sprite_shader = _glCreateShader(GL_FRAGMENT_SHADER);
-	_glShaderSource(sprite_shader, glsl_150 ? lengthof(_frag_shader_sprite_blend_150) : lengthof(_frag_shader_sprite_blend), glsl_150 ? _frag_shader_sprite_blend_150 : _frag_shader_sprite_blend, nullptr);
+	if (IsOpenGLES()) {
+		if (use_gles3) {
+			_glShaderSource(sprite_shader, lengthof(_frag_shader_sprite_blend_es3), _frag_shader_sprite_blend_es3, nullptr);
+		} else {
+			_glShaderSource(sprite_shader, lengthof(_frag_shader_sprite_blend_es), _frag_shader_sprite_blend_es, nullptr);
+		}
+	} else {
+		_glShaderSource(sprite_shader, use_modern_shaders ? lengthof(_frag_shader_sprite_blend_150) : lengthof(_frag_shader_sprite_blend), use_modern_shaders ? _frag_shader_sprite_blend_150 : _frag_shader_sprite_blend, nullptr);
+	}
 	_glCompileShader(sprite_shader);
 	if (!VerifyShader(sprite_shader)) return false;
 
@@ -858,7 +937,7 @@ bool OpenGLBackend::InitShaders()
 	_glAttachShader(this->sprite_program, vert_shader);
 	_glAttachShader(this->sprite_program, sprite_shader);
 
-	if (glsl_150) {
+	if (use_modern_shaders && !IsOpenGLES()) {
 		/* Bind fragment shader outputs. */
 		_glBindFragDataLocation(this->vid_program, 0, "colour");
 		_glBindFragDataLocation(this->pal_program, 0, "colour");
@@ -1029,8 +1108,15 @@ void OpenGLBackend::UpdatePalette(const Colour *pal, uint first, uint length)
 	_glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 	_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	_glActiveTexture(GL_TEXTURE1);
-	_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
-	_glTexSubImage1D(GL_TEXTURE_1D, 0, first, length, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, pal + first);
+
+	if (IsOpenGLES()) {
+		/* OpenGL ES doesn't support 1D textures, use 2D texture with height 1 */
+		_glBindTexture(GL_TEXTURE_2D, this->pal_texture);
+		_glTexSubImage2D(GL_TEXTURE_2D, 0, first, 0, length, 1, GL_RGBA, GL_UNSIGNED_BYTE, pal + first);
+	} else {
+		_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+		_glTexSubImage1D(GL_TEXTURE_1D, 0, first, length, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, pal + first);
+	}
 }
 
 /**

@@ -111,6 +111,8 @@ std::optional<std::string_view> VideoDriver_SDL_OpenGL::AllocateContext()
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
 	SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+
+	/* First try OpenGL Core profile */
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
 	if (_debug_driver_level >= 8) {
@@ -118,7 +120,36 @@ std::optional<std::string_view> VideoDriver_SDL_OpenGL::AllocateContext()
 	}
 
 	this->gl_context = SDL_GL_CreateContext(this->sdl_window);
-	if (this->gl_context == nullptr) return "SDL2: Can't active GL context";
+
+	/* If OpenGL Core fails, try OpenGL ES */
+	if (this->gl_context == nullptr) {
+		Debug(driver, 1, "OpenGL Core context creation failed, trying OpenGL ES");
+
+		/* Clear any previous error */
+		SDL_ClearError();
+
+		/* Try OpenGL ES 3.0 first */
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+		this->gl_context = SDL_GL_CreateContext(this->sdl_window);
+
+		/* If ES 3.0 fails, try ES 2.0 */
+		if (this->gl_context == nullptr) {
+			Debug(driver, 1, "OpenGL ES 3.0 context creation failed, trying OpenGL ES 2.0");
+			SDL_ClearError();
+
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+			this->gl_context = SDL_GL_CreateContext(this->sdl_window);
+		}
+	}
+
+	if (this->gl_context == nullptr) {
+		return "SDL2: Can't create GL context";
+	}
 
 	ToggleVsync(_video_vsync);
 
