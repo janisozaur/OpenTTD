@@ -1320,7 +1320,11 @@ void OpenGLBackend::ReleaseVideoBuffer(const Rect &update_rect)
 		if (BlitterFactory::GetCurrentBlitter()->GetScreenDepth() == 8) {
 			_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_RED, GL_UNSIGNED_BYTE, (GLvoid*)(size_t)(update_rect.top * _screen.pitch + update_rect.left));
 		} else {
-			_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
+			if (IsOpenGLES()) {
+				_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
+			} else {
+				_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
+			}
 		}
 
 #ifndef NO_GL_BUFFER_SYNC
@@ -1449,7 +1453,11 @@ void OpenGLBackend::RenderOglSprite(const OpenGLSprite *gl_sprite, PaletteID pal
 	/* Load dummy RGBA texture. */
 	const Colour rgb_pixel(0, 0, 0);
 	_glBindTexture(GL_TEXTURE_2D, OpenGLSprite::dummy_tex[TEX_RGBA]);
-	_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, &rgb_pixel);
+	if (IsOpenGLES()) {
+		_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &rgb_pixel);
+	} else {
+		_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, &rgb_pixel);
+	}
 
 	/* Load dummy remap texture. */
 	const uint pal = 0;
@@ -1559,7 +1567,11 @@ OpenGLSprite::OpenGLSprite(SpriteType sprite_type, const SpriteLoader::SpriteCol
 			if (t == TEX_REMAP) {
 				_glTexImage2D(GL_TEXTURE_2D, i, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 			} else {
-				_glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA8, w, h, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+				if (IsOpenGLES()) {
+					_glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+				} else {
+					_glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA8, w, h, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+				}
 			}
 		}
 	}
@@ -1597,16 +1609,30 @@ void OpenGLSprite::Update(uint width, uint height, uint level, const SpriteLoade
 	if (this->tex[TEX_RGBA] != 0) {
 		/* Unpack pixel data */
 		size_t size = static_cast<size_t>(width) * height;
-		Colour *rgba = buf_rgba.Allocate(size);
-		for (size_t i = 0; i < size; i++) {
-			rgba[i].r = data[i].r;
-			rgba[i].g = data[i].g;
-			rgba[i].b = data[i].b;
-			rgba[i].a = data[i].a;
+		if (IsOpenGLES()) {
+			/* For OpenGL ES, convert to RGBA format */
+			static ReusableBuffer<uint8_t> buf_rgba_bytes;
+			uint8_t *rgba_bytes = buf_rgba_bytes.Allocate(size * 4);
+			for (size_t i = 0; i < size; i++) {
+				rgba_bytes[i * 4 + 0] = data[i].r;
+				rgba_bytes[i * 4 + 1] = data[i].g;
+				rgba_bytes[i * 4 + 2] = data[i].b;
+				rgba_bytes[i * 4 + 3] = data[i].a;
+			}
+			_glBindTexture(GL_TEXTURE_2D, this->tex[TEX_RGBA]);
+			_glTexSubImage2D(GL_TEXTURE_2D, level, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba_bytes);
+		} else {
+			/* For regular OpenGL, use BGRA format */
+			Colour *rgba = buf_rgba.Allocate(size);
+			for (size_t i = 0; i < size; i++) {
+				rgba[i].r = data[i].r;
+				rgba[i].g = data[i].g;
+				rgba[i].b = data[i].b;
+				rgba[i].a = data[i].a;
+			}
+			_glBindTexture(GL_TEXTURE_2D, this->tex[TEX_RGBA]);
+			_glTexSubImage2D(GL_TEXTURE_2D, level, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, rgba);
 		}
-
-		_glBindTexture(GL_TEXTURE_2D, this->tex[TEX_RGBA]);
-		_glTexSubImage2D(GL_TEXTURE_2D, level, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, rgba);
 	}
 
 	if (this->tex[TEX_REMAP] != 0) {
