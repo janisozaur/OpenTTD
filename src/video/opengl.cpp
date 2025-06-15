@@ -296,6 +296,11 @@ static bool BindVBOExtension()
 		if (!BindGLProc(_glUnmapBuffer, "glUnmapBufferARB")) return false;
 	}
 
+	/* Bind glMapBufferRange for OpenGL ES 3.0+ or regular OpenGL 3.0+ */
+	if (IsOpenGLVersionAtLeast(3, 0) || (IsOpenGLES() && IsOpenGLVersionAtLeast(3, 0))) {
+		BindGLProc(_glMapBufferRange, "glMapBufferRange");
+	}
+
 	if (IsOpenGLVersionAtLeast(4, 3) || IsOpenGLExtensionSupported("GL_ARB_clear_buffer_object")) {
 		BindGLProc(_glClearBufferSubData, "glClearBufferSubData");
 	} else {
@@ -1001,6 +1006,14 @@ static void ClearPixelBuffer(size_t len, T data)
 	} else {
 		buf = reinterpret_cast<T *>(_glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE));
 	}
+
+	if (buf == nullptr) {
+		/* Buffer mapping failed, fall back to glBufferSubData */
+		std::vector<T> temp_data(len, data);
+		_glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, sizeof(T) * len, temp_data.data());
+		return;
+	}
+
 	for (size_t i = 0; i < len; i++) {
 		*buf++ = data;
 	}
@@ -1275,6 +1288,10 @@ void *OpenGLBackend::GetVideoBuffer()
 		} else {
 			this->vid_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
 		}
+		if (this->vid_buffer == nullptr) {
+			Debug(driver, 0, "OpenGL: Failed to map video buffer");
+			return nullptr;
+		}
 	} else if (this->vid_buffer == nullptr) {
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->vid_pbo);
 		this->vid_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height * BlitterFactory::GetCurrentBlitter()->GetScreenDepth() / 8, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
@@ -1302,6 +1319,10 @@ uint8_t *OpenGLBackend::GetAnimBuffer()
 			this->anim_buffer = _glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, static_cast<GLsizeiptr>(_screen.pitch) * _screen.height, GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
 		} else {
 			this->anim_buffer = _glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+		}
+		if (this->anim_buffer == nullptr) {
+			Debug(driver, 0, "OpenGL: Failed to map animation buffer");
+			return nullptr;
 		}
 	} else if (this->anim_buffer == nullptr) {
 		_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, this->anim_pbo);
