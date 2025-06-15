@@ -1055,7 +1055,11 @@ bool OpenGLBackend::Resize(int w, int h, bool force)
 		/* Initialize backing store alpha to opaque for 32bpp modes. */
 		Colour black(0, 0, 0);
 		if (_glClearBufferSubData != nullptr) {
-			_glClearBufferSubData(GL_PIXEL_UNPACK_BUFFER, GL_RGBA8, 0, line_pixel_count * bpp / 8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, &black.data);
+			if (IsOpenGLES()) {
+				_glClearBufferSubData(GL_PIXEL_UNPACK_BUFFER, GL_RGBA8, 0, line_pixel_count * bpp / 8, GL_BGRA, GL_UNSIGNED_BYTE, &black.data);
+			} else {
+				_glClearBufferSubData(GL_PIXEL_UNPACK_BUFFER, GL_RGBA8, 0, line_pixel_count * bpp / 8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, &black.data);
+			}
 		} else {
 			ClearPixelBuffer<uint32_t>(line_pixel_count, black.data);
 		}
@@ -1073,7 +1077,11 @@ bool OpenGLBackend::Resize(int w, int h, bool force)
 	if (bpp == 8) {
 		_glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 	} else {
-		_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+		if (IsOpenGLES()) {
+			_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+		} else {
+			_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, nullptr);
+		}
 	}
 	_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
@@ -1149,8 +1157,20 @@ void OpenGLBackend::UpdatePalette(const Colour *pal, uint first, uint length)
 
 	if (IsOpenGLES()) {
 		/* OpenGL ES doesn't support 1D textures, use 2D texture with height 1 */
+		/* Also need to convert BGRA to RGBA since ES expects RGBA format */
+		static ReusableBuffer<uint8_t> rgba_buffer;
+		uint8_t *rgba_data = rgba_buffer.Allocate(length * 4);
+
+		for (uint i = 0; i < length; i++) {
+			const Colour &c = pal[first + i];
+			rgba_data[i * 4 + 0] = c.r;  // Red
+			rgba_data[i * 4 + 1] = c.g;  // Green
+			rgba_data[i * 4 + 2] = c.b;  // Blue
+			rgba_data[i * 4 + 3] = c.a;  // Alpha
+		}
+
 		_glBindTexture(GL_TEXTURE_2D, this->pal_texture);
-		_glTexSubImage2D(GL_TEXTURE_2D, 0, first, 0, length, 1, GL_RGBA, GL_UNSIGNED_BYTE, pal + first);
+		_glTexSubImage2D(GL_TEXTURE_2D, 0, first, 0, length, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgba_data);
 	} else {
 		_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
 		_glTexSubImage1D(GL_TEXTURE_1D, 0, first, length, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, pal + first);
@@ -1362,7 +1382,7 @@ void OpenGLBackend::ReleaseVideoBuffer(const Rect &update_rect)
 			_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_RED, GL_UNSIGNED_BYTE, (GLvoid*)(size_t)(update_rect.top * _screen.pitch + update_rect.left));
 		} else {
 			if (IsOpenGLES()) {
-				_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
+				_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_BGRA, GL_UNSIGNED_BYTE, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
 			} else {
 				_glTexSubImage2D(GL_TEXTURE_2D, 0, update_rect.left, update_rect.top, update_rect.right - update_rect.left, update_rect.bottom - update_rect.top, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, (GLvoid*)(size_t)(update_rect.top * _screen.pitch * 4 + update_rect.left * 4));
 			}
