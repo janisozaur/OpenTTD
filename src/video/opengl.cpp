@@ -1157,7 +1157,11 @@ void OpenGLBackend::Paint()
 	_glActiveTexture(GL_TEXTURE0);
 	_glBindTexture(GL_TEXTURE_2D, this->vid_texture);
 	_glActiveTexture(GL_TEXTURE1);
-	_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+	if (IsOpenGLES()) {
+		_glBindTexture(GL_TEXTURE_2D, this->pal_texture);
+	} else {
+		_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+	}
 	/* Is the blitter relying on a separate animation buffer? */
 	if (BlitterFactory::GetCurrentBlitter()->NeedsAnimationBuffer()) {
 		_glActiveTexture(GL_TEXTURE2);
@@ -1404,26 +1408,42 @@ void OpenGLBackend::RenderOglSprite(const OpenGLSprite *gl_sprite, PaletteID pal
 	/* Set textures. */
 	bool rgb = gl_sprite->BindTextures();
 	_glActiveTexture(GL_TEXTURE0 + 1);
-	_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+	if (IsOpenGLES()) {
+		_glBindTexture(GL_TEXTURE_2D, this->pal_texture);
+	} else {
+		_glBindTexture(GL_TEXTURE_1D, this->pal_texture);
+	}
 
 	/* Set palette remap. */
 	_glActiveTexture(GL_TEXTURE0 + 3);
 	if (pal != PAL_NONE) {
-		_glBindTexture(GL_TEXTURE_1D, OpenGLSprite::pal_tex);
+		if (IsOpenGLES()) {
+			_glBindTexture(GL_TEXTURE_2D, OpenGLSprite::pal_tex);
+		} else {
+			_glBindTexture(GL_TEXTURE_1D, OpenGLSprite::pal_tex);
+		}
 		if (pal != this->last_sprite_pal) {
 			/* Different remap palette in use, update texture. */
 			_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, OpenGLSprite::pal_pbo);
 			_glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
 			_glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, 256, GetNonSprite(GB(pal, 0, PALETTE_WIDTH), SpriteType::Recolour) + 1);
-			_glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 256, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+			if (IsOpenGLES()) {
+				_glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 256, 1, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+			} else {
+				_glTexSubImage1D(GL_TEXTURE_1D, 0, 0, 256, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+			}
 
 			_glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 			this->last_sprite_pal = pal;
 		}
 	} else {
-		_glBindTexture(GL_TEXTURE_1D, OpenGLSprite::pal_identity);
+		if (IsOpenGLES()) {
+			_glBindTexture(GL_TEXTURE_2D, OpenGLSprite::pal_identity);
+		} else {
+			_glBindTexture(GL_TEXTURE_1D, OpenGLSprite::pal_identity);
+		}
 	}
 
 	/* Set up shader program. */
