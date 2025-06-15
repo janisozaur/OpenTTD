@@ -7,60 +7,14 @@
 
 /** @file opengl_shader.h OpenGL shader programs. */
 
-/** Vertex shader that positions a sprite on screen.. */
-static const char *_vertex_shader_sprite[] = {
-	"#version 110\n",
+/** Vertex shader that positions a sprite on screen. */
+static const char *_vertex_shader_sprite_template[] = {
+	"VERSION_DIRECTIVE",
+	"PRECISION_DIRECTIVE",
 	"uniform vec4 sprite;",
 	"uniform vec2 screen;",
-	"attribute vec2 position, colour_uv;",
-	"varying vec2 colour_tex_uv;",
-	"void main() {",
-	"  vec2 size = sprite.zw / screen.xy;",
-	"  vec2 offset = ((2.0 * sprite.xy + sprite.zw) / screen.xy - 1.0) * vec2(1.0, -1.0);",
-	"  colour_tex_uv = colour_uv;",
-	"  gl_Position = vec4(position * size + offset, 0.0, 1.0);",
-	"}",
-};
-
-/** GLSL 1.50 vertex shader that positions a sprite on screen. */
-static const char *_vertex_shader_sprite_150[] = {
-	"#version 150\n",
-	"uniform vec4 sprite;",
-	"uniform vec2 screen;",
-	"in vec2 position, colour_uv;",
-	"out vec2 colour_tex_uv;",
-	"void main() {",
-	"  vec2 size = sprite.zw / screen.xy;",
-	"  vec2 offset = ((2.0 * sprite.xy + sprite.zw) / screen.xy - 1.0) * vec2(1.0, -1.0);",
-	"  colour_tex_uv = colour_uv;",
-	"  gl_Position = vec4(position * size + offset, 0.0, 1.0);",
-	"}",
-};
-
-/** GLSL ES 1.00 vertex shader that positions a sprite on screen. */
-static const char *_vertex_shader_sprite_es[] = {
-	"#version 100\n",
-	"precision mediump float;",
-	"uniform vec4 sprite;",
-	"uniform vec2 screen;",
-	"attribute vec2 position, colour_uv;",
-	"varying vec2 colour_tex_uv;",
-	"void main() {",
-	"  vec2 size = sprite.zw / screen.xy;",
-	"  vec2 offset = ((2.0 * sprite.xy + sprite.zw) / screen.xy - 1.0) * vec2(1.0, -1.0);",
-	"  colour_tex_uv = colour_uv;",
-	"  gl_Position = vec4(position * size + offset, 0.0, 1.0);",
-	"}",
-};
-
-/** GLSL ES 3.00 vertex shader that positions a sprite on screen. */
-static const char *_vertex_shader_sprite_es3[] = {
-	"#version 300 es\n",
-	"precision mediump float;",
-	"uniform vec4 sprite;",
-	"uniform vec2 screen;",
-	"in vec2 position, colour_uv;",
-	"out vec2 colour_tex_uv;",
+	"ATTRIBUTE vec2 position, colour_uv;",
+	"VARYING vec2 colour_tex_uv;",
 	"void main() {",
 	"  vec2 size = sprite.zw / screen.xy;",
 	"  vec2 offset = ((2.0 * sprite.xy + sprite.zw) / screen.xy - 1.0) * vec2(1.0, -1.0);",
@@ -70,98 +24,26 @@ static const char *_vertex_shader_sprite_es3[] = {
 };
 
 /** Fragment shader that reads the fragment colour from a 32bpp texture. */
-static const char *_frag_shader_direct[] = {
-	"#version 110\n",
+static const char *_frag_shader_direct_template[] = {
+	"VERSION_DIRECTIVE",
+	"PRECISION_DIRECTIVE",
 	"uniform sampler2D colour_tex;",
-	"varying vec2 colour_tex_uv;",
+	"VARYING vec2 colour_tex_uv;",
 	"void main() {",
-	"  gl_FragData[0] = texture2D(colour_tex, colour_tex_uv);",
-	"}",
-};
-
-/** GLSL 1.50 fragment shader that reads the fragment colour from a 32bpp texture. */
-static const char *_frag_shader_direct_150[] = {
-	"#version 150\n",
-	"uniform sampler2D colour_tex;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"void main() {",
-	"  colour = texture(colour_tex, colour_tex_uv);",
-	"}",
-};
-
-/** GLSL ES 1.00 fragment shader that reads the fragment colour from a 32bpp texture. */
-static const char *_frag_shader_direct_es[] = {
-	"#version 100\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"varying vec2 colour_tex_uv;",
-	"void main() {",
-	"  gl_FragColor = texture2D(colour_tex, colour_tex_uv);",
-	"}",
-};
-
-/** GLSL ES 3.00 fragment shader that reads the fragment colour from a 32bpp texture. */
-static const char *_frag_shader_direct_es3[] = {
-	"#version 300 es\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"void main() {",
-	"  colour = texture(colour_tex, colour_tex_uv);",
+	"  FRAGCOLOR = TEXTURE_2D(colour_tex, colour_tex_uv);",
 	"}",
 };
 
 /** Fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_palette[] = {
-	"#version 110\n",
+static const char *_frag_shader_palette_template[] = {
+	"VERSION_DIRECTIVE",
+	"PRECISION_DIRECTIVE",
 	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
-	"varying vec2 colour_tex_uv;",
+	"uniform SAMPLER_PALETTE palette;",
+	"VARYING vec2 colour_tex_uv;",
 	"void main() {",
-	"  float idx = texture2D(colour_tex, colour_tex_uv).r;",
-	"  gl_FragData[0] = texture1D(palette, idx);",
-	"}",
-};
-
-/** GLSL 1.50 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_palette_150[] = {
-	"#version 150\n",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"void main() {",
-	"  float idx = texture(colour_tex, colour_tex_uv).r;",
-	"  colour = texture(palette, idx);",
-	"}",
-};
-
-/** GLSL ES 1.00 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_palette_es[] = {
-	"#version 100\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"varying vec2 colour_tex_uv;",
-	"void main() {",
-	"  float idx = texture2D(colour_tex, colour_tex_uv).r;",
-	"  gl_FragColor = texture2D(palette, vec2(idx, 0.5));",
-	"}",
-};
-
-/** GLSL ES 3.00 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_palette_es3[] = {
-	"#version 300 es\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"void main() {",
-	"  float idx = texture(colour_tex, colour_tex_uv).r;",
-	"  colour = texture(palette, vec2(idx, 0.5));",
+	"  float idx = TEXTURE_2D(colour_tex, colour_tex_uv).r;",
+	"  FRAGCOLOR = TEXTURE_PALETTE(palette, idx);",
 	"}",
 };
 
@@ -181,245 +63,53 @@ static const char *_frag_shader_remap_func = \
 	"}";
 
 /** Fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_rgb_mask_blend[] = {
-	"#version 110\n",
-	"#extension GL_ATI_shader_texture_lod: enable\n",
-	"#extension GL_ARB_shader_texture_lod: enable\n",
+static const char *_frag_shader_rgb_mask_blend_template[] = {
+	"VERSION_DIRECTIVE",
+	"EXTENSION_DIRECTIVE",
+	"PRECISION_DIRECTIVE",
 	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
+	"uniform SAMPLER_PALETTE palette;",
 	"uniform sampler2D remap_tex;",
 	"uniform bool rgb;",
 	"uniform float zoom;",
-	"varying vec2 colour_tex_uv;",
+	"VARYING vec2 colour_tex_uv;",
 	"",
 	_frag_shader_remap_func,
 	"",
 	"void main() {",
-	"  float idx = texture2DLod(remap_tex, colour_tex_uv, zoom).r;",
-	"  vec4 remap_col = texture1D(palette, idx);",
-	"  vec4 rgb_col = texture2DLod(colour_tex, colour_tex_uv, zoom);",
+	"  float idx = TEXTURE_2D_LOD(remap_tex, colour_tex_uv, zoom).r;",
+	"  vec4 remap_col = TEXTURE_PALETTE(palette, idx);",
+	"  vec4 rgb_col = TEXTURE_2D_LOD(colour_tex, colour_tex_uv, zoom);",
 	"",
-	"  gl_FragData[0].a = rgb ? rgb_col.a : remap_col.a;",
-	"  gl_FragData[0].rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL 1.50 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_rgb_mask_blend_150[] = {
-	"#version 150\n",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform float zoom;",
-	"uniform bool rgb;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"",
-	_frag_shader_remap_func,
-	"",
-	"void main() {",
-	"  float idx = textureLod(remap_tex, colour_tex_uv, zoom).r;",
-	"  vec4 remap_col = texture(palette, idx);",
-	"  vec4 rgb_col = textureLod(colour_tex, colour_tex_uv, zoom);",
-	"",
-	"  colour.a = rgb ? rgb_col.a : remap_col.a;",
-	"  colour.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL ES 1.00 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_rgb_mask_blend_es[] = {
-	"#version 100\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform bool rgb;",
-	"uniform float zoom;",
-	"varying vec2 colour_tex_uv;",
-	"",
-	"float max3(vec3 v) {",
-	"  return max(max(v.x, v.y), v.z);",
-	"}",
-	"",
-	"vec3 adj_brightness(vec3 colour, float brightness) {",
-	"  vec3 adj = colour * (brightness > 0.0 ? brightness / 0.5 : 1.0);",
-	"  vec3 ob_vec = clamp(adj - 1.0, 0.0, 1.0);",
-	"  float ob = (ob_vec.r + ob_vec.g + ob_vec.b) / 2.0;",
-	"",
-	"  return clamp(adj + ob * (1.0 - adj), 0.0, 1.0);",
-	"}",
-	"",
-	"void main() {",
-	"  float idx = texture2D(remap_tex, colour_tex_uv).r;",
-	"  vec4 remap_col = texture2D(palette, vec2(idx, 0.5));",
-	"  vec4 rgb_col = texture2D(colour_tex, colour_tex_uv);",
-	"",
-	"  gl_FragColor.a = rgb ? rgb_col.a : remap_col.a;",
-	"  gl_FragColor.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL ES 3.00 fragment shader that performs a palette lookup to read the colour from an 8bpp texture. */
-static const char *_frag_shader_rgb_mask_blend_es3[] = {
-	"#version 300 es\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform float zoom;",
-	"uniform bool rgb;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"",
-	"float max3(vec3 v) {",
-	"  return max(max(v.x, v.y), v.z);",
-	"}",
-	"",
-	"vec3 adj_brightness(vec3 colour_in, float brightness) {",
-	"  vec3 adj = colour_in * (brightness > 0.0 ? brightness / 0.5 : 1.0);",
-	"  vec3 ob_vec = clamp(adj - 1.0, 0.0, 1.0);",
-	"  float ob = (ob_vec.r + ob_vec.g + ob_vec.b) / 2.0;",
-	"",
-	"  return clamp(adj + ob * (1.0 - adj), 0.0, 1.0);",
-	"}",
-	"",
-	"void main() {",
-	"  float idx = textureLod(remap_tex, colour_tex_uv, zoom).r;",
-	"  vec4 remap_col = texture(palette, vec2(idx, 0.5));",
-	"  vec4 rgb_col = textureLod(colour_tex, colour_tex_uv, zoom);",
-	"",
-	"  colour.a = rgb ? rgb_col.a : remap_col.a;",
-	"  colour.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
+	"  FRAGCOLOR_ALPHA = rgb ? rgb_col.a : remap_col.a;",
+	"  FRAGCOLOR_RGB = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
 	"}",
 };
 
 /** Fragment shader that performs a palette lookup to read the colour from a sprite texture. */
-static const char *_frag_shader_sprite_blend[] = {
-	"#version 110\n",
-	"#extension GL_ATI_shader_texture_lod: enable\n",
-	"#extension GL_ARB_shader_texture_lod: enable\n",
+static const char *_frag_shader_sprite_blend_template[] = {
+	"VERSION_DIRECTIVE",
+	"EXTENSION_DIRECTIVE",
+	"PRECISION_DIRECTIVE",
 	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
+	"uniform SAMPLER_PALETTE palette;",
 	"uniform sampler2D remap_tex;",
-	"uniform sampler1D pal;",
+	"uniform SAMPLER_PALETTE pal;",
 	"uniform float zoom;",
 	"uniform bool rgb;",
 	"uniform bool crash;",
-	"varying vec2 colour_tex_uv;",
+	"VARYING vec2 colour_tex_uv;",
 	"",
 	_frag_shader_remap_func,
 	"",
 	"void main() {",
-	"  float idx = texture2DLod(remap_tex, colour_tex_uv, zoom).r;",
-	"  float r = texture1D(pal, idx).r;",
-	"  vec4 remap_col = texture1D(palette, idx);",
-	"  vec4 rgb_col = texture2DLod(colour_tex, colour_tex_uv, zoom);",
+	"  float idx = TEXTURE_2D_LOD(remap_tex, colour_tex_uv, zoom).r;",
+	"  float r = TEXTURE_PALETTE(pal, idx).r;",
+	"  vec4 remap_col = TEXTURE_PALETTE(palette, PALETTE_LOOKUP_VALUE);",
+	"  vec4 rgb_col = TEXTURE_2D_LOD(colour_tex, colour_tex_uv, zoom);",
 	"",
-	"  if (crash && idx == 0.0) rgb_col.rgb = vec2(dot(rgb_col.rgb, vec3(0.199325561523, 0.391342163085, 0.076004028320)), 0.0).rrr;"
-	"  gl_FragData[0].a = rgb && (r > 0.0 || idx == 0.0) ? rgb_col.a : remap_col.a;",
-	"  gl_FragData[0].rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL 1.50 fragment shader that performs a palette lookup to read the colour from a sprite texture. */
-static const char *_frag_shader_sprite_blend_150[] = {
-	"#version 150\n",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler1D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform sampler1D pal;",
-	"uniform float zoom;",
-	"uniform bool rgb;",
-	"uniform bool crash;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"",
-	_frag_shader_remap_func,
-	"",
-	"void main() {",
-	"  float idx =  textureLod(remap_tex, colour_tex_uv, zoom).r;"
-	"  float r = texture(pal, idx).r;",
-	"  vec4 remap_col = texture(palette, r);",
-	"  vec4 rgb_col = textureLod(colour_tex, colour_tex_uv, zoom);",
-	"",
-	"  if (crash && idx == 0.0) rgb_col.rgb = vec2(dot(rgb_col.rgb, vec3(0.199325561523, 0.391342163085, 0.076004028320)), 0.0).rrr;"
-	"  colour.a = rgb && (r > 0.0 || idx == 0.0) ? rgb_col.a : remap_col.a;",
-	"  colour.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL ES 1.00 fragment shader that performs a palette lookup to read the colour from a sprite texture. */
-static const char *_frag_shader_sprite_blend_es[] = {
-	"#version 100\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform sampler2D pal;",
-	"uniform float zoom;",
-	"uniform bool rgb;",
-	"uniform bool crash;",
-	"varying vec2 colour_tex_uv;",
-	"",
-	"float max3(vec3 v) {",
-	"  return max(max(v.x, v.y), v.z);",
-	"}",
-	"",
-	"vec3 adj_brightness(vec3 colour, float brightness) {",
-	"  vec3 adj = colour * (brightness > 0.0 ? brightness / 0.5 : 1.0);",
-	"  vec3 ob_vec = clamp(adj - 1.0, 0.0, 1.0);",
-	"  float ob = (ob_vec.r + ob_vec.g + ob_vec.b) / 2.0;",
-	"",
-	"  return clamp(adj + ob * (1.0 - adj), 0.0, 1.0);",
-	"}",
-	"",
-	"void main() {",
-	"  float idx = texture2D(remap_tex, colour_tex_uv).r;",
-	"  float r = texture2D(pal, vec2(idx, 0.5)).r;",
-	"  vec4 remap_col = texture2D(palette, vec2(idx, 0.5));",
-	"  vec4 rgb_col = texture2D(colour_tex, colour_tex_uv);",
-	"",
-	"  if (crash && idx == 0.0) rgb_col.rgb = vec3(dot(rgb_col.rgb, vec3(0.199325561523, 0.391342163085, 0.076004028320)));",
-	"  gl_FragColor.a = rgb && (r > 0.0 || idx == 0.0) ? rgb_col.a : remap_col.a;",
-	"  gl_FragColor.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
-	"}",
-};
-
-/** GLSL ES 3.00 fragment shader that performs a palette lookup to read the colour from a sprite texture. */
-static const char *_frag_shader_sprite_blend_es3[] = {
-	"#version 300 es\n",
-	"precision mediump float;",
-	"uniform sampler2D colour_tex;",
-	"uniform sampler2D palette;",
-	"uniform sampler2D remap_tex;",
-	"uniform sampler2D pal;",
-	"uniform float zoom;",
-	"uniform bool rgb;",
-	"uniform bool crash;",
-	"in vec2 colour_tex_uv;",
-	"out vec4 colour;",
-	"",
-	"float max3(vec3 v) {",
-	"  return max(max(v.x, v.y), v.z);",
-	"}",
-	"",
-	"vec3 adj_brightness(vec3 colour_in, float brightness) {",
-	"  vec3 adj = colour_in * (brightness > 0.0 ? brightness / 0.5 : 1.0);",
-	"  vec3 ob_vec = clamp(adj - 1.0, 0.0, 1.0);",
-	"  float ob = (ob_vec.r + ob_vec.g + ob_vec.b) / 2.0;",
-	"",
-	"  return clamp(adj + ob * (1.0 - adj), 0.0, 1.0);",
-	"}",
-	"",
-	"void main() {",
-	"  float idx = textureLod(remap_tex, colour_tex_uv, zoom).r;",
-	"  float r = texture(pal, vec2(idx, 0.5)).r;",
-	"  vec4 remap_col = texture(palette, vec2(r, 0.5));",
-	"  vec4 rgb_col = textureLod(colour_tex, colour_tex_uv, zoom);",
-	"",
-	"  if (crash && idx == 0.0) rgb_col.rgb = vec3(dot(rgb_col.rgb, vec3(0.199325561523, 0.391342163085, 0.076004028320)));",
-	"  colour.a = rgb && (r > 0.0 || idx == 0.0) ? rgb_col.a : remap_col.a;",
-	"  colour.rgb = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
+	"  CRASH_EFFECT",
+	"  FRAGCOLOR_ALPHA = rgb && (r > 0.0 || idx == 0.0) ? rgb_col.a : remap_col.a;",
+	"  FRAGCOLOR_RGB = idx > 0.0 ? adj_brightness(remap_col.rgb, max3(rgb_col.rgb)) : rgb_col.rgb;",
 	"}",
 };

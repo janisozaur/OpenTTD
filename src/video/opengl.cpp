@@ -8,6 +8,7 @@
 /** @file opengl_v.cpp OpenGL video driver support. */
 
 #include "../stdafx.h"
+#include <string>
 
 /* Define to disable buffer syncing. Will increase max fast forward FPS but produces artifacts. Mainly useful for performance testing. */
 // #define NO_GL_BUFFER_SYNC
@@ -848,6 +849,173 @@ static bool VerifyProgram(GLuint program)
 }
 
 /**
+ * Generate a shader from a template by replacing placeholder macros.
+ * @param shader_template Array of strings containing the shader template.
+ * @param template_length Number of strings in the template array.
+ * @param use_modern_shaders Whether to use modern shader features.
+ * @param is_gles Whether this is OpenGL ES.
+ * @param use_gles3 Whether to use OpenGL ES 3.0 features.
+ * @return Generated shader source as a single string.
+ */
+static std::string GenerateShaderFromTemplate(const char **shader_template, size_t template_length, bool use_modern_shaders, bool is_gles, bool use_gles3)
+{
+	std::string result;
+
+	/* Define replacements based on OpenGL/ES version */
+	std::string version_directive, extension_directive, precision_directive;
+	std::string attribute, varying, fragcolor, fragcolor_alpha, fragcolor_rgb;
+	std::string sampler_palette, texture_2d, texture_2d_lod, texture_palette;
+	std::string palette_lookup_value, crash_effect;
+
+	if (is_gles) {
+		if (use_gles3) {
+			version_directive = "#version 300 es";
+			extension_directive = "";
+			precision_directive = "precision mediump float;\nprecision mediump sampler2D;";
+			attribute = "in";
+			varying = "out";
+			fragcolor = "fragColor";
+			fragcolor_alpha = "fragColor.a";
+			fragcolor_rgb = "fragColor.rgb";
+			sampler_palette = "sampler2D";
+			texture_2d = "texture";
+			texture_2d_lod = "textureLod";
+			texture_palette = "texture";
+			palette_lookup_value = "vec2(r, 0.5)";
+			crash_effect = "if (crash) { remap_col.rgb = vec3(0.5) + 0.5 * cos((remap_col.rgb + rgb_col.rgb) * 4.0); }";
+		} else {
+			version_directive = "#version 100";
+			extension_directive = "";
+			precision_directive = "precision mediump float;\nprecision mediump sampler2D;";
+			attribute = "attribute";
+			varying = "varying";
+			fragcolor = "gl_FragColor";
+			fragcolor_alpha = "gl_FragColor.a";
+			fragcolor_rgb = "gl_FragColor.rgb";
+			sampler_palette = "sampler2D";
+			texture_2d = "texture2D";
+			texture_2d_lod = "texture2D";
+			texture_palette = "texture2D";
+			palette_lookup_value = "vec2(r, 0.5)";
+			crash_effect = "if (crash) { remap_col.rgb = vec3(0.5) + 0.5 * cos((remap_col.rgb + rgb_col.rgb) * 4.0); }";
+		}
+	} else {
+		if (use_modern_shaders) {
+			version_directive = "#version 150";
+			extension_directive = "";
+			precision_directive = "";
+			attribute = "in";
+			varying = "out";
+			fragcolor = "colour";
+			fragcolor_alpha = "colour.a";
+			fragcolor_rgb = "colour.rgb";
+			sampler_palette = "sampler1D";
+			texture_2d = "texture";
+			texture_2d_lod = "textureLod";
+			texture_palette = "texture";
+			palette_lookup_value = "r";
+			crash_effect = "if (crash) { remap_col.rgb = vec3(0.5) + 0.5 * cos((remap_col.rgb + rgb_col.rgb) * 4.0); }";
+		} else {
+			version_directive = "#version 110";
+			extension_directive = "";
+			precision_directive = "";
+			attribute = "attribute";
+			varying = "varying";
+			fragcolor = "gl_FragColor";
+			fragcolor_alpha = "gl_FragColor.a";
+			fragcolor_rgb = "gl_FragColor.rgb";
+			sampler_palette = "sampler1D";
+			texture_2d = "texture2D";
+			texture_2d_lod = "texture2D";
+			texture_palette = "texture1D";
+			palette_lookup_value = "r";
+			crash_effect = "if (crash) { remap_col.rgb = vec3(0.5) + 0.5 * cos((remap_col.rgb + rgb_col.rgb) * 4.0); }";
+		}
+	}
+
+	/* Process each line in the template */
+	for (size_t i = 0; i < template_length; i++) {
+		std::string line = shader_template[i];
+
+		/* Replace placeholders with actual values */
+		size_t pos;
+		while ((pos = line.find("VERSION_DIRECTIVE")) != std::string::npos) {
+			line.replace(pos, 17, version_directive);
+		}
+		while ((pos = line.find("EXTENSION_DIRECTIVE")) != std::string::npos) {
+			line.replace(pos, 19, extension_directive);
+		}
+		while ((pos = line.find("PRECISION_DIRECTIVE")) != std::string::npos) {
+			line.replace(pos, 19, precision_directive);
+		}
+		while ((pos = line.find("ATTRIBUTE")) != std::string::npos) {
+			line.replace(pos, 9, attribute);
+		}
+		while ((pos = line.find("VARYING")) != std::string::npos) {
+			line.replace(pos, 7, varying);
+		}
+		while ((pos = line.find("FRAGCOLOR_ALPHA")) != std::string::npos) {
+			line.replace(pos, 15, fragcolor_alpha);
+		}
+		while ((pos = line.find("FRAGCOLOR_RGB")) != std::string::npos) {
+			line.replace(pos, 13, fragcolor_rgb);
+		}
+		while ((pos = line.find("FRAGCOLOR")) != std::string::npos) {
+			line.replace(pos, 9, fragcolor);
+		}
+		while ((pos = line.find("SAMPLER_PALETTE")) != std::string::npos) {
+			line.replace(pos, 15, sampler_palette);
+		}
+		while ((pos = line.find("TEXTURE_2D_LOD")) != std::string::npos) {
+			line.replace(pos, 14, texture_2d_lod);
+		}
+		while ((pos = line.find("TEXTURE_2D")) != std::string::npos) {
+			line.replace(pos, 10, texture_2d);
+		}
+		while ((pos = line.find("TEXTURE_PALETTE")) != std::string::npos) {
+			line.replace(pos, 15, texture_palette);
+		}
+		while ((pos = line.find("PALETTE_LOOKUP_VALUE")) != std::string::npos) {
+			line.replace(pos, 20, palette_lookup_value);
+		}
+		while ((pos = line.find("CRASH_EFFECT")) != std::string::npos) {
+			line.replace(pos, 12, crash_effect);
+		}
+
+		result += line + "\n";
+	}
+
+	return result;
+}
+
+/**
+ * Create a shader from a template and compile it.
+ * @param shader_type GL shader type (GL_VERTEX_SHADER or GL_FRAGMENT_SHADER).
+ * @param shader_template Array of strings containing the shader template.
+ * @param template_length Number of strings in the template array.
+ * @param use_modern_shaders Whether to use modern shader features.
+ * @param is_gles Whether this is OpenGL ES.
+ * @param use_gles3 Whether to use OpenGL ES 3.0 features.
+ * @return Compiled shader ID, or 0 on failure.
+ */
+static GLuint CreateShaderFromTemplate(GLenum shader_type, const char **shader_template, size_t template_length, bool use_modern_shaders, bool is_gles, bool use_gles3)
+{
+	std::string shader_source = GenerateShaderFromTemplate(shader_template, template_length, use_modern_shaders, is_gles, use_gles3);
+	const char *source_ptr = shader_source.c_str();
+
+	GLuint shader = _glCreateShader(shader_type);
+	_glShaderSource(shader, 1, &source_ptr, nullptr);
+	_glCompileShader(shader);
+
+	if (!VerifyShader(shader)) {
+		_glDeleteShader(shader);
+		return 0;
+	}
+
+	return shader;
+}
+
+/**
  * Create all needed shader programs.
  * @return True if successful, false otherwise.
  */
@@ -861,8 +1029,9 @@ bool OpenGLBackend::InitShaders()
 	/* Determine which shader version to use based on OpenGL/ES version and capabilities */
 	bool use_modern_shaders = false;
 	bool use_gles3 = false;
+	bool is_gles = IsOpenGLES();
 
-	if (IsOpenGLES()) {
+	if (is_gles) {
 		/* For OpenGL ES, check GLSL ES version */
 		if (glsl_major >= 3) {
 			use_gles3 = true;
@@ -875,74 +1044,24 @@ bool OpenGLBackend::InitShaders()
 	}
 
 	/* Create vertex shader. */
-	GLuint vert_shader = _glCreateShader(GL_VERTEX_SHADER);
-	if (IsOpenGLES()) {
-		if (use_gles3) {
-			_glShaderSource(vert_shader, lengthof(_vertex_shader_sprite_es3), _vertex_shader_sprite_es3, nullptr);
-		} else {
-			_glShaderSource(vert_shader, lengthof(_vertex_shader_sprite_es), _vertex_shader_sprite_es, nullptr);
-		}
-	} else {
-		_glShaderSource(vert_shader, use_modern_shaders ? lengthof(_vertex_shader_sprite_150) : lengthof(_vertex_shader_sprite), use_modern_shaders ? _vertex_shader_sprite_150 : _vertex_shader_sprite, nullptr);
-	}
-	_glCompileShader(vert_shader);
-	if (!VerifyShader(vert_shader)) return false;
+	GLuint vert_shader = CreateShaderFromTemplate(GL_VERTEX_SHADER, _vertex_shader_sprite_template, lengthof(_vertex_shader_sprite_template), use_modern_shaders, is_gles, use_gles3);
+	if (vert_shader == 0) return false;
 
 	/* Create fragment shader for plain RGBA. */
-	GLuint frag_shader_rgb = _glCreateShader(GL_FRAGMENT_SHADER);
-	if (IsOpenGLES()) {
-		if (use_gles3) {
-			_glShaderSource(frag_shader_rgb, lengthof(_frag_shader_direct_es3), _frag_shader_direct_es3, nullptr);
-		} else {
-			_glShaderSource(frag_shader_rgb, lengthof(_frag_shader_direct_es), _frag_shader_direct_es, nullptr);
-		}
-	} else {
-		_glShaderSource(frag_shader_rgb, use_modern_shaders ? lengthof(_frag_shader_direct_150) : lengthof(_frag_shader_direct), use_modern_shaders ? _frag_shader_direct_150 : _frag_shader_direct, nullptr);
-	}
-	_glCompileShader(frag_shader_rgb);
-	if (!VerifyShader(frag_shader_rgb)) return false;
+	GLuint frag_shader_rgb = CreateShaderFromTemplate(GL_FRAGMENT_SHADER, _frag_shader_direct_template, lengthof(_frag_shader_direct_template), use_modern_shaders, is_gles, use_gles3);
+	if (frag_shader_rgb == 0) return false;
 
 	/* Create fragment shader for paletted only. */
-	GLuint frag_shader_pal = _glCreateShader(GL_FRAGMENT_SHADER);
-	if (IsOpenGLES()) {
-		if (use_gles3) {
-			_glShaderSource(frag_shader_pal, lengthof(_frag_shader_palette_es3), _frag_shader_palette_es3, nullptr);
-		} else {
-			_glShaderSource(frag_shader_pal, lengthof(_frag_shader_palette_es), _frag_shader_palette_es, nullptr);
-		}
-	} else {
-		_glShaderSource(frag_shader_pal, use_modern_shaders ? lengthof(_frag_shader_palette_150) : lengthof(_frag_shader_palette), use_modern_shaders ? _frag_shader_palette_150 : _frag_shader_palette, nullptr);
-	}
-	_glCompileShader(frag_shader_pal);
-	if (!VerifyShader(frag_shader_pal)) return false;
+	GLuint frag_shader_pal = CreateShaderFromTemplate(GL_FRAGMENT_SHADER, _frag_shader_palette_template, lengthof(_frag_shader_palette_template), use_modern_shaders, is_gles, use_gles3);
+	if (frag_shader_pal == 0) return false;
 
 	/* Sprite remap fragment shader. */
-	GLuint remap_shader = _glCreateShader(GL_FRAGMENT_SHADER);
-	if (IsOpenGLES()) {
-		if (use_gles3) {
-			_glShaderSource(remap_shader, lengthof(_frag_shader_rgb_mask_blend_es3), _frag_shader_rgb_mask_blend_es3, nullptr);
-		} else {
-			_glShaderSource(remap_shader, lengthof(_frag_shader_rgb_mask_blend_es), _frag_shader_rgb_mask_blend_es, nullptr);
-		}
-	} else {
-		_glShaderSource(remap_shader, use_modern_shaders ? lengthof(_frag_shader_rgb_mask_blend_150) : lengthof(_frag_shader_rgb_mask_blend), use_modern_shaders ? _frag_shader_rgb_mask_blend_150 : _frag_shader_rgb_mask_blend, nullptr);
-	}
-	_glCompileShader(remap_shader);
-	if (!VerifyShader(remap_shader)) return false;
+	GLuint remap_shader = CreateShaderFromTemplate(GL_FRAGMENT_SHADER, _frag_shader_rgb_mask_blend_template, lengthof(_frag_shader_rgb_mask_blend_template), use_modern_shaders, is_gles, use_gles3);
+	if (remap_shader == 0) return false;
 
 	/* Sprite fragment shader. */
-	GLuint sprite_shader = _glCreateShader(GL_FRAGMENT_SHADER);
-	if (IsOpenGLES()) {
-		if (use_gles3) {
-			_glShaderSource(sprite_shader, lengthof(_frag_shader_sprite_blend_es3), _frag_shader_sprite_blend_es3, nullptr);
-		} else {
-			_glShaderSource(sprite_shader, lengthof(_frag_shader_sprite_blend_es), _frag_shader_sprite_blend_es, nullptr);
-		}
-	} else {
-		_glShaderSource(sprite_shader, use_modern_shaders ? lengthof(_frag_shader_sprite_blend_150) : lengthof(_frag_shader_sprite_blend), use_modern_shaders ? _frag_shader_sprite_blend_150 : _frag_shader_sprite_blend, nullptr);
-	}
-	_glCompileShader(sprite_shader);
-	if (!VerifyShader(sprite_shader)) return false;
+	GLuint sprite_shader = CreateShaderFromTemplate(GL_FRAGMENT_SHADER, _frag_shader_sprite_blend_template, lengthof(_frag_shader_sprite_blend_template), use_modern_shaders, is_gles, use_gles3);
+	if (sprite_shader == 0) return false;
 
 	/* Link shaders to program. */
 	this->vid_program = _glCreateProgram();
@@ -961,7 +1080,7 @@ bool OpenGLBackend::InitShaders()
 	_glAttachShader(this->sprite_program, vert_shader);
 	_glAttachShader(this->sprite_program, sprite_shader);
 
-	if (use_modern_shaders && !IsOpenGLES()) {
+	if (use_modern_shaders && !is_gles) {
 		/* Bind fragment shader outputs. */
 		_glBindFragDataLocation(this->vid_program, 0, "colour");
 		_glBindFragDataLocation(this->pal_program, 0, "colour");
