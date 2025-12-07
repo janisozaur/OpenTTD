@@ -503,7 +503,9 @@ void VideoDriver_Cocoa::InputLoop()
 
 	if (old_ctrl_pressed != _ctrl_pressed) HandleCtrlChanged();
 
-	this->ProcessGamepadInput();
+	/* Process gamepad input only while the window is focused */
+	bool window_focused = this->window != nil && [ NSApp isActive ] && [ this->window isKeyWindow ];
+	if (window_focused) this->ProcessGamepadInput();
 }
 
 bool VideoDriver_Cocoa::OpenGamepad()
