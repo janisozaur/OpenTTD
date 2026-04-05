@@ -53,7 +53,11 @@ class TrackedCall extends FunctionCall {
 	}
 }
 
-predicate sequencedByInitializerList(TrackedCall c1, TrackedCall c2) {
+predicate strictlySequencedOrNotBothEvaluated(TrackedCall c1, TrackedCall c2) {
+	containsExpr(c1, c2)
+	or
+	containsExpr(c2, c1)
+	or
 	exists(AggregateLiteral al |
 		containsExpr(al, c1) and
 		containsExpr(al, c2)
@@ -63,6 +67,72 @@ predicate sequencedByInitializerList(TrackedCall c1, TrackedCall c2) {
 		containsExpr(bl, c1) and
 		containsExpr(bl, c2)
 	)
+	or
+	exists(CommaExpr comma |
+		(
+			containsExpr(comma.getLeftOperand(), c1) and
+			containsExpr(comma.getRightOperand(), c2)
+		)
+		or
+		(
+			containsExpr(comma.getLeftOperand(), c2) and
+			containsExpr(comma.getRightOperand(), c1)
+		)
+	)
+	or
+	exists(LogicalAndExpr op |
+		(
+			containsExpr(op.getLeftOperand(), c1) and
+			containsExpr(op.getRightOperand(), c2)
+		)
+		or
+		(
+			containsExpr(op.getLeftOperand(), c2) and
+			containsExpr(op.getRightOperand(), c1)
+		)
+	)
+	or
+	exists(LogicalOrExpr op |
+		(
+			containsExpr(op.getLeftOperand(), c1) and
+			containsExpr(op.getRightOperand(), c2)
+		)
+		or
+		(
+			containsExpr(op.getLeftOperand(), c2) and
+			containsExpr(op.getRightOperand(), c1)
+		)
+	)
+	or
+	exists(ConditionalExpr cond |
+		(
+			containsExpr(cond.getCondition(), c1) and
+			(
+				containsExpr(cond.getThen(), c2)
+				or
+				containsExpr(cond.getElse(), c2)
+			)
+		)
+		or
+		(
+			containsExpr(cond.getCondition(), c2) and
+			(
+				containsExpr(cond.getThen(), c1)
+				or
+				containsExpr(cond.getElse(), c1)
+			)
+		)
+		or
+		(
+			containsExpr(cond.getThen(), c1) and
+			containsExpr(cond.getElse(), c2)
+		)
+		or
+		(
+			containsExpr(cond.getThen(), c2) and
+			containsExpr(cond.getElse(), c1)
+		)
+	)
 }
 
 predicate callHasMultipleTrackedCallsInArguments(Call call) {
@@ -70,7 +140,7 @@ predicate callHasMultipleTrackedCallsInArguments(Call call) {
 		c1 != c2 and
 		containsExpr(call.getArgument(i), c1) and
 		containsExpr(call.getArgument(j), c2) and
-		not sequencedByInitializerList(c1, c2)
+		not strictlySequencedOrNotBothEvaluated(c1, c2)
 	)
 }
 
@@ -78,7 +148,7 @@ predicate binaryOpHasTrackedCallsOnBothSides(UnsequencedBinaryOperation op) {
 	exists(TrackedCall c1, TrackedCall c2 |
 		containsExpr(op.getLeftOperand(), c1) and
 		containsExpr(op.getRightOperand(), c2) and
-		not sequencedByInitializerList(c1, c2)
+		not strictlySequencedOrNotBothEvaluated(c1, c2)
 	)
 }
 
