@@ -14,8 +14,9 @@ OpenTTD's multiplayer is based on a deterministic lockstep architecture. Every c
     - Blocks guarded by `IsLocalCompany()`.
     - UI-related code.
     - Code that depends on `_settings_client`.
-- **Never** use `Random()` in a statement with other `Random()` calls or functions that might call `Random()`. The order of evaluation of function parameters is undefined in C++.
-    - Bad: `DoSomething(Random(), Random());`
+- **Never** use `Random()` in a statement with other `Random()` calls or functions that might call `Random()`. The order of evaluation of function parameters AND operands of most binary operators is undefined in C++.
+    - Bad (Function arguments): `DoSomething(Random(), Random());`
+    - Bad (Binary operator): `TrainCrashed(t) + TrainCrashed(coll);` (if `TrainCrashed` calls `Random`)
     - Good: `uint32 r1 = Random(); uint32 r2 = Random(); DoSomething(r1, r2);`
 - **Never** call `Random()` inside a `DEBUG()` statement or any code that can be compiled out or disabled via log levels.
 
