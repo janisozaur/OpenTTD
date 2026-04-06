@@ -3234,7 +3234,7 @@ static uint CheckTrainCollision(Vehicle *v, Train *t)
 	if (abs(v->z_pos - t->z_pos) > 5) return 0;
 
 	/* crash both trains */
-	return TrainCrashed(t) + TrainCrashed(coll);
+	return std::min(TrainCrashed(t), TrainCrashed(coll));
 }
 
 /**
