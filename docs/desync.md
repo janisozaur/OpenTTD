@@ -15,6 +15,8 @@ Last updated: 2014-02-23
     - 3.1) [Replaying](#31-replaying)
     - 3.2) [Evaluation of the replay](#32-evaluation-of-the-replay)
     - 3.3) [Comparing savegames](#33-comparing-savegames)
+- 4.0) [Desync Prevention Guide](./desync_prevention.md)
+- 5.0) [Future Desync Tracing Tools and Improvements](./desync_tooling_suggestions.md)
 
 
 ## 1.1) OpenTTD multiplayer architecture

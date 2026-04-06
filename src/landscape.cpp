@@ -45,6 +45,8 @@
 #include "table/sprites.h"
 
 #include <unordered_set>
+#include <vector>
+#include <algorithm>
 
 #include "safeguards.h"
 
@@ -1406,8 +1408,12 @@ static std::tuple<bool, bool> FlowRiver(TileIndex spring, TileIndex begin, uint 
 					found = true;
 					break;
 				} else {
-					/* Sea is too small, flatten it so the river keeps looking or forms a lake / wetland. */
-					for (TileIndex sea_tile : sea) {
+					/* Sea is too small, flatten it so the river keeps looking or forms a lake / wetland.
+					 * We need to iterate over the sea tiles in a deterministic order to avoid desyncs. */
+					std::vector<TileIndex> sorted_sea(sea.begin(), sea.end());
+					std::sort(sorted_sea.begin(), sorted_sea.end());
+
+					for (TileIndex sea_tile : sorted_sea) {
 						Command<CMD_TERRAFORM_LAND>::Do(DoCommandFlag::Execute, sea_tile, SLOPE_ELEVATED, false);
 						Slope slope = ComplementSlope(GetTileSlope(sea_tile));
 						Command<CMD_TERRAFORM_LAND>::Do(DoCommandFlag::Execute, sea_tile, slope, true);
