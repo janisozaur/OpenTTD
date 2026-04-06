@@ -1,6 +1,7 @@
 name: openttd
 queries:
 - uses: security-and-quality
+- uses: ./.github/codeql/track-random.ql
 query-filters:
 - exclude:
     id:
